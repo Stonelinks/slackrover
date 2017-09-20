@@ -1,11 +1,41 @@
-/**
- * Created by ld on 2/8/16.
- */
 var os = require('os')
+var fs = require('fs')
+var _ = require('underscore')
 
 var Botkit = require('botkit')
 
-var SerialPort = require('serialport');
+var NodeWebcam = require("node-webcam")
+
+var Webcam = NodeWebcam.create({
+
+  // width: 1280,
+  width: 640,
+  // height: 720,
+  height: 480,
+
+  quality: 50,
+
+  // Save shots in memory 
+  saveShots: false,
+
+  // [jpeg, png] support varies 
+  // Webcam.OutputTypes 
+  output: "jpeg",
+
+  // Which camera to use 
+  // Use Webcam.list() for results 
+  // false for default device 
+  device: false,
+
+  // [location, buffer, base64] 
+  // Webcam.CallbackReturnTypes 
+  callbackReturn: "location",
+  verbose: true
+})
+
+const imageLocation = './latest.jpg'
+
+var SerialPort = require('serialport')
 var radio = new SerialPort('/dev/ttyUSB0', {
   baudRate: 57600
 })
@@ -18,7 +48,7 @@ const motorSpeedBackward = -100
 const motorDelay = 250
 const motorTurnDelay = 150
 
-const movements = [
+const commands = [
   {
     desc: 'Move forward',
     char: 'w',
@@ -52,6 +82,11 @@ const movements = [
     char: 'k',
     func: stopMovement,
   },
+  {
+    desc: 'Send picture',
+    char: 'p',
+    func: sendPicture
+  }
 ]
 
 // Expect a SLACK_TOKEN environment variable
@@ -61,6 +96,8 @@ if (!slackToken) {
   process.exit(1)
 }
 
+const listen = ['ambient']
+
 var controller = Botkit.slackbot()
 
 controller.setupWebserver(process.env.PORT || 8080)
@@ -68,41 +105,55 @@ var bot = controller.spawn({
   token: slackToken
 })
 
+var SlackUpload = require('node-slack-upload')
+var slackUpload = new SlackUpload(slackToken)
+
 bot.startRTM(function (err, bot, payload) {
   if (err) {
     throw new Error('Could not connect to Slack')
   }
 
-  controller.hears(['uptime', 'stats',], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
-    var hostname = os.hostname();
-    var uptime = formatUptime(process.uptime());
-    bot.reply(message, `:robot_face: I am a bot named <@${bot.identity.name}>. I have been running for ${uptime} on ${hostname}.`);
+  controller.hears(['uptime', 'stats'], listen, function (bot, message) {
+    var hostname = os.hostname()
+    var uptime = formatUptime(process.uptime())
+    bot.reply(message, `:robot_face: I am a bot named <@${bot.identity.name}>. I have been running for ${uptime} on ${hostname}.`)
   })
 
-  controller.hears('help.*', ['direct_message', 'direct_mention'], function (bot, message) {
+  controller.hears('help.*', listen, function (bot, message) {
     let msg = 'Send me sequences of the following commands to move:\n'
-    movements.forEach(function (o) {
+    commands.forEach(function (o) {
       msg += `- '${o.char}': ${o.desc}\n`
     })
     bot.reply(message, msg)
   })
 
-  controller.hears(['fast'], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
-    generateMoveFunc(function() {
+  controller.hears(['beep'], listen, function (bot, message) {
+    beep(600, 50)
+  })
+
+  controller.hears(['fast'], listen, function (bot, message) {
+    generateMoveFunc(function () {
       move(motorSpeedForwardFast, motorSpeedForwardFast)
     }, motorDelay * 5)()
   })
 
   controller.hears('.*', ['direct_message', 'direct_mention'], function (bot, message) {
+    let msg = 'I don\'t respond to this. Please go on the #rover channel to use me'
+    bot.reply(message, msg)
+  })
+
+  controller.hears('.*', listen, function (bot, message) {
     let delaysSoFar = 0
+    if (message.text[message.text.length - 1] !== 'p') {
+      message.text += 'p'
+    }
     message.text += 'k'
     for (var i = 0; i < message.text.length; i++) {
       const char = message.text[i].toLowerCase()
-      movements.forEach(function (o) {
+      commands.forEach(function (o) {
         if (o.char === char) {
           setTimeout(function () {
-            o.func()
-            // bot.reply(message, o.desc)
+            o.func(message)
           }, delaysSoFar)
           if (o.delay) {
             delaysSoFar += o.delay
@@ -112,8 +163,14 @@ bot.startRTM(function (err, bot, payload) {
     }
   })
 
-  console.log('booted')
+  init()
 })
+
+function init () {
+  stopMovement()
+  beep(600, 30)
+  console.log('booted')
+}
 
 function formatUptime(uptime) {
   var unit = 'second'
@@ -133,10 +190,19 @@ function formatUptime(uptime) {
   return uptime
 }
 
+function beep(freq, duration) {
+  radio.write(`b${freq},${duration}\n`, function (err) {
+    if (err) {
+      return console.log('Error on write: ', err.message)
+    }
+    console.log(`sent beep command: ${freq}, ${duration}`)
+  })
+}
+
 function move(motor1, motor2) {
   radio.write(`m${motor1},${motor2}\n`, function (err) {
     if (err) {
-      return console.log('Error on write: ', err.message);
+      return console.log('Error on write: ', err.message)
     }
     console.log(`sent move command: ${motor1}, ${motor2}`)
   })
@@ -171,7 +237,29 @@ function generateMoveFunc(movementFunc, delay) {
   }
 }
 
-// TODO
-// camera
-// tween
-// buzzer
+const _takePicture = _.throttle(function (message) {
+  Webcam.capture(imageLocation, function (err, location) {
+    if (err) {
+      console.error(err)
+    }
+  })
+}, 1000)
+
+function sendPicture(message) {
+  _takePicture(message)
+  setTimeout(function () {
+    slackUpload.uploadFile({
+      file: fs.createReadStream(imageLocation),
+      filetype: 'image',
+      // title: 'README',
+      // initialComment: 'my comment',
+      channels: message.channel
+    }, function (err, data) {
+      if (err) {
+        console.error(err)
+      } else {
+        console.log('uploaded picture')
+      }
+    })
+  })
+}
