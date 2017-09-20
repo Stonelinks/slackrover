@@ -120,7 +120,7 @@ bot.startRTM(function (err, bot, payload) {
   })
 
   controller.hears('help.*', listen, function (bot, message) {
-    let msg = 'Send me sequences of the following commands to move:\n'
+    let msg = 'Send me sequences of the following commands to do stuff:\n'
     commands.forEach(function (o) {
       msg += `- '${o.char}': ${o.desc}\n`
     })
