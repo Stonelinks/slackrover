@@ -85,7 +85,7 @@ const commands = [
   {
     desc: 'Send picture',
     char: 'p',
-    func: sendPicture
+    func: takeAndSendPicture
   }
 ]
 
@@ -143,11 +143,24 @@ bot.startRTM(function (err, bot, payload) {
   })
 
   controller.hears('.*', listen, function (bot, message) {
-    let delaysSoFar = 0
-    if (message.text[message.text.length - 1] !== 'p') {
-      message.text += 'p'
+    let hasValidCommand = false
+    for (var i = 0; i < message.text.length; i++) {
+      const char = message.text[i].toLowerCase()
+      commands.forEach(function (o) {
+        if (o.char === char) {
+          hasValidCommand = true
+        }
+      })
     }
-    message.text += 'k'
+
+    if (hasValidCommand) {
+      if (message.text[message.text.length - 1] !== 'p') {
+        message.text += 'p'
+      }
+      message.text += 'k'
+    }
+
+    let delaysSoFar = 0
     for (var i = 0; i < message.text.length; i++) {
       const char = message.text[i].toLowerCase()
       commands.forEach(function (o) {
@@ -166,7 +179,7 @@ bot.startRTM(function (err, bot, payload) {
   init()
 })
 
-function init () {
+function init() {
   stopMovement()
   beep(600, 30)
   console.log('booted')
@@ -182,7 +195,7 @@ function formatUptime(uptime) {
     uptime = uptime / 60
     unit = 'hour'
   }
-  if (uptime != 1) {
+  if (uptime !== 1) {
     unit = unit + 's'
   }
 
@@ -237,17 +250,10 @@ function generateMoveFunc(movementFunc, delay) {
   }
 }
 
-const _takePicture = _.throttle(function (message) {
-  Webcam.capture(imageLocation, function (err, location) {
-    if (err) {
-      console.error(err)
-    }
-  })
-}, 1000)
+let isCapturing = false
+const _takeAndSendPicture = _.throttle(function (message) {
 
-function sendPicture(message) {
-  _takePicture(message)
-  setTimeout(function () {
+  const _sendFile = _.throttle(function() {
     slackUpload.uploadFile({
       file: fs.createReadStream(imageLocation),
       filetype: 'image',
@@ -261,5 +267,24 @@ function sendPicture(message) {
         console.log('uploaded picture')
       }
     })
-  })
+  }, 1000)
+
+  if (!isCapturing) {
+    isCapturing = true
+    Webcam.capture(imageLocation, function (err, location) {
+      if (err) {
+        console.error(err)
+      }
+      isCapturing = false
+      _sendFile()
+    })
+  } else {
+    _sendFile()
+  }
+}, 1000)
+
+function takeAndSendPicture(message) {
+  setTimeout(function () {
+    _takeAndSendPicture(message)
+  }, motorDelay)
 }
