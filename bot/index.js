@@ -127,8 +127,17 @@ bot.startRTM(function (err, bot, payload) {
     bot.reply(message, msg)
   })
 
-  controller.hears(['beep'], listen, function (bot, message) {
-    beep(600, 50)
+  controller.hears('beep', listen, function (bot, message) {
+    var matches = message.text.match(/beep\s+(\d+)(?:\s+(\d+))?/i)
+    var frequency = 600
+    var duration = 50
+    if (matches.length == 3) {
+      frequency = matches[1]
+      if (matches[2]) {
+        duration = matches[2]
+      }
+    }
+    beep(frequency, duration)
   })
 
   controller.hears(['fast'], listen, function (bot, message) {
