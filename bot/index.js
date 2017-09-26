@@ -133,6 +133,25 @@ bot.startRTM(function (err, bot, payload) {
     }
   })
 
+  controller.hears('covfefe', listen, function (bot, message) {
+    var frequency = Math.floor(Math.random() * 400) + 400
+    var duration = Math.floor(Math.random() * 400) + 200
+    var durationSoFar = 0
+    startLeft()
+    while (frequency > 30) {
+      durationSoFar += duration
+      setTimeout(function () {
+        beep(frequency, duration)
+      }, durationSoFar)
+      
+      frequency *= Math.random() * 0.3 + 0.8
+      duration *= Math.random() * 0.3 + 0.8
+    }
+    setTimeout(function () {
+      stopMovement()
+    }, durationSoFar)
+  })
+
   controller.hears(['uptime', 'stats'], listen, function (bot, message) {
     var hostname = os.hostname()
     var uptime = formatUptime(process.uptime())
