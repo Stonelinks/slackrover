@@ -89,6 +89,12 @@ const commands = [
   }
 ]
 
+let commandMap = {}
+for (var i=0; i<commands.length; i++) {
+  command = commands[i]
+  commandMap[command.char] = command
+}
+
 // Expect a SLACK_TOKEN environment variable
 var slackToken = process.env.SLACK_TOKEN
 if (!slackToken) {
@@ -167,11 +173,9 @@ bot.startRTM(function (err, bot, payload) {
     let hasValidCommand = false
     for (var i = 0; i < message.text.length; i++) {
       const char = message.text[i].toLowerCase()
-      commands.forEach(function (o) {
-        if (o.char === char) {
-          hasValidCommand = true
-        }
-      })
+      if (commandMap[char]) {
+        hasValidCommand = true
+      }
     }
 
     if (hasValidCommand) {
@@ -182,20 +186,24 @@ bot.startRTM(function (err, bot, payload) {
     }
 
     let delaysSoFar = 0
-    for (var i = 0; i < message.text.length; i++) {
-      const char = message.text[i].toLowerCase()
-      commands.forEach(function (o) {
-        if (o.char === char) {
+    var text = message.text
+    while (text) {
+      matches = text.match(/(\w)(\d+)?(.*)/i)
+      if (!matches) {
+        return
+      }
+      let command = commandMap[matches[1].toLowerCase()]
+      let multiplier = Math.min(parseInt(matches[2]) || 1, 20)
+      text = matches[3]
+      if (command) {
+        for (var i=0; i<multiplier; i++) {
           setTimeout(function () {
-            o.func(message)
+            command.func(message)
           }, delaysSoFar)
-          if (o.delay) {
-            delaysSoFar += o.delay
-          }
+          delaysSoFar += o.delay || 0
         }
-      })
+      }
     }
-  })
 
   init()
 })
