@@ -128,16 +128,22 @@ bot.startRTM(function (err, bot, payload) {
   })
 
   controller.hears('beep', listen, function (bot, message) {
-    var matches = message.text.match(/beep\s+(\d+)(?:\s+(\d+))?/i)
-    var frequency = 600
-    var duration = 50
-    if (matches.length == 3) {
-      frequency = matches[1]
-      if (matches[2]) {
-        duration = matches[2]
-      }
+    var matches = message.text.match(/beep\s+(.*)/i)
+    if (!matches) {
+      beep(600, 50)
     }
-    beep(frequency, duration)
+
+    var tonesText = matches[1]
+    while (tonesText) {
+      matches = tonesText.match(/(\d+)\s+(\d+)(?:\s+(.*))?/i)
+      if (!matches) {
+        return
+      }
+      let frequency = matches[1]
+      let duration = matches[2]
+      let tonesText = matches[3]
+      beep(frequency, duration)
+    }
   })
 
   controller.hears(['fast'], listen, function (bot, message) {
