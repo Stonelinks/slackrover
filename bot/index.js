@@ -134,15 +134,21 @@ bot.startRTM(function (err, bot, payload) {
     }
 
     var tonesText = matches[1]
+    let durationSoFar = 0
     while (tonesText) {
-      matches = tonesText.match(/(\d+)\s+(\d+)(?:\s+(.*))?/i)
+      matches = tonesText.match(/(\d+\.?\d*)\s+(\d+\.?\d*)(?:\s+(.*))?/i)
       if (!matches) {
         return
       }
       let frequency = matches[1]
       let duration = matches[2]
-      let tonesText = matches[3]
-      beep(frequency, duration)
+      tonesText = matches[3]
+      durationSoFar += parseInt(duration)
+      setTimeout(function () {
+        if (parseInt(frequency)) {
+          beep(frequency, duration)
+        }
+      }, durationSoFar)
     }
   })
 
@@ -268,7 +274,7 @@ function generateMoveFunc(movementFunc, delay) {
 let isCapturing = false
 const _takeAndSendPicture = _.throttle(function (message) {
 
-  const _sendFile = _.throttle(function() {
+  const _sendFile = _.throttle(function () {
     slackUpload.uploadFile({
       file: fs.createReadStream(imageLocation),
       filetype: 'image',
