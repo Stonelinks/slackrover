@@ -125,7 +125,8 @@ bot.startRTM(function (err, bot, payload) {
       bot.reply(message, 'http://i0.kym-cdn.com/photos/images/facebook/000/057/035/NOPE.jpg')
     } else {
       try {
-        bot.reply(message, eval(matches[1]))
+        const res = eval(matches[1])
+        bot.reply(message, res)
       } catch (e) {
         console.log(e)
         bot.reply(message, e.stack)
@@ -151,6 +152,7 @@ bot.startRTM(function (err, bot, payload) {
     var matches = message.text.match(/beep\s+(.*)/i)
     if (!matches) {
       beep(600, 50)
+      return
     }
 
     var tonesText = matches[1]
@@ -248,6 +250,8 @@ function formatUptime(uptime) {
 }
 
 function beep(freq, duration) {
+  freq = parseInt(freq)
+  duration = parseInt(duration)
   radio.write(`b${freq},${duration}\n`, function (err) {
     if (err) {
       return console.log('Error on write: ', err.message)
