@@ -90,7 +90,7 @@ const commands = [
 ]
 
 let commandMap = {}
-for (var i=0; i<commands.length; i++) {
+for (var i = 0; i < commands.length; i++) {
   command = commands[i]
   commandMap[command.char] = command
 }
@@ -196,15 +196,16 @@ bot.startRTM(function (err, bot, payload) {
       let multiplier = Math.min(parseInt(matches[2]) || 1, 20)
       text = matches[3]
       if (command) {
-        for (var i=0; i<multiplier; i++) {
+        for (var i = 0; i < multiplier; i++) {
           setTimeout(function () {
             command.func(message)
           }, delaysSoFar)
-          delaysSoFar += o.delay || 0
+          delaysSoFar += command.delay || 0
         }
       }
     }
-
+  })
+  
   init()
 })
 
@@ -281,7 +282,6 @@ function generateMoveFunc(movementFunc, delay) {
 
 let isCapturing = false
 const _takeAndSendPicture = _.throttle(function (message) {
-
   const _sendFile = _.throttle(function () {
     slackUpload.uploadFile({
       file: fs.createReadStream(imageLocation),
