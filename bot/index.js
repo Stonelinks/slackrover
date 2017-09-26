@@ -119,6 +119,20 @@ bot.startRTM(function (err, bot, payload) {
     throw new Error('Could not connect to Slack')
   }
 
+  controller.hears('eval', listen, function (bot, message) {
+    var matches = message.text.match(/eval (.*)/i);
+    if (!matches) {
+      bot.reply(message, 'http://i0.kym-cdn.com/photos/images/facebook/000/057/035/NOPE.jpg')
+    } else {
+      try {
+        bot.reply(message, eval(matches[1]))
+      } catch (e) {
+        console.log(e)
+        bot.reply(message, e.stack)
+      }
+    }
+  })
+
   controller.hears(['uptime', 'stats'], listen, function (bot, message) {
     var hostname = os.hostname()
     var uptime = formatUptime(process.uptime())
@@ -188,7 +202,7 @@ bot.startRTM(function (err, bot, payload) {
     let delaysSoFar = 0
     var text = message.text
     while (text) {
-      matches = text.match(/(\w)(\d+)?(.*)/i)
+      var matches = text.match(/(\w)(\d+)?(.*)/i)
       if (!matches) {
         return
       }
@@ -205,7 +219,7 @@ bot.startRTM(function (err, bot, payload) {
       }
     }
   })
-  
+
   init()
 })
 
