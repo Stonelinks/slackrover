@@ -147,6 +147,9 @@ bot.startRTM(function (err, bot, payload) {
     var midiTempo = matches && matches[2] || 2
 
     if (midiURL) {
+      if (midiURL === 'http://www.midiworld.com/download/854') {
+        BotLogger.log(message, 'https://i.ytimg.com/vi/u0py1ECA2eM/maxresdefault.jpg')
+      }
 
       const fileStream = fs.createWriteStream(midiLocation)
       fileStream.on('close', function () {
@@ -170,11 +173,8 @@ bot.startRTM(function (err, bot, payload) {
             }
   
             let durationSoFar = 0
+            clearNoises()
 
-            fuckingNoises.forEach(function(noiseTimeout) {
-              clearTimeout(noiseTimeout)
-            })
-            fuckingNoises = []
 
             stdout.split('\n').forEach(function (pairStr) {
               let [f, d] = pairStr.split(',')
@@ -235,11 +235,13 @@ bot.startRTM(function (err, bot, payload) {
     var matches = message.text.match(/beep\s+(.*)/i)
     if (!matches) {
       beep(600, 50)
+      clearNoises()
       return
     }
 
     var tonesText = matches[1]
     let durationSoFar = 0
+    clearNoises()
     while (tonesText) {
       matches = tonesText.match(/(\d+\.?\d*)\s+(\d+\.?\d*)(?:\s+(.*))?/i)
       if (!matches) {
@@ -347,13 +349,19 @@ function beep(freq, duration) {
 
 }
 
+let lastMotor1Speed = null
+let lastMotor2Speed = null
 function move(motor1, motor2) {
-  radio.write(`m${motor1},${motor2}\n`, function (err) {
-    if (err) {
-      return console.log('Error on write: ', err.message)
-    }
-    console.log(`sent move command: ${motor1}, ${motor2}`)
-  })
+  if (lastMotor1Speed !== motor1 || lastMotor2Speed !== motor2) {
+    lastMotor1Speed = motor1
+    lastMotor2Speed = motor2
+    radio.write(`m${motor1},${motor2}\n`, function (err) {
+      if (err) {
+        return console.log('Error on write: ', err.message)
+      }
+      console.log(`sent move command: ${motor1}, ${motor2}`)
+    })
+  }
 }
 
 function startForward() {
@@ -421,4 +429,11 @@ function takeAndSendPicture(message) {
   setTimeout(function () {
     _takeAndSendPicture(message)
   }, motorDelay)
+}
+
+function clearNoises () {
+  fuckingNoises.forEach(function (noiseTimeout) {
+    clearTimeout(noiseTimeout)
+  })
+  fuckingNoises = []
 }
