@@ -20,6 +20,7 @@
     "botkit": "0.0.8",
     "node-slack-upload": "1.2.1",
     "node-webcam": "0.4.3",
+    "request": "2.83.0",
     "serialport": "5.0.0",
     "underscore": "1.8.3"
   }

@@ -2,38 +2,34 @@ var os = require('os')
 var fs = require('fs')
 var _ = require('underscore')
 
+var request = require('request');
 var Botkit = require('botkit')
+
+var exec = require('child_process').exec
 
 var NodeWebcam = require("node-webcam")
 
 var Webcam = NodeWebcam.create({
 
-  // width: 1280,
   width: 640,
-  // height: 720,
   height: 480,
 
   quality: 50,
 
-  // Save shots in memory 
   saveShots: false,
 
-  // [jpeg, png] support varies 
-  // Webcam.OutputTypes 
   output: "jpeg",
 
-  // Which camera to use 
-  // Use Webcam.list() for results 
-  // false for default device 
   device: false,
 
-  // [location, buffer, base64] 
-  // Webcam.CallbackReturnTypes 
   callbackReturn: "location",
   verbose: true
 })
 
 const imageLocation = './latest.jpg'
+const midiLocation = './sound.mid'
+
+let fuckingNoises = []
 
 var SerialPort = require('serialport')
 var radio = new SerialPort('/dev/ttyUSB0', {
@@ -119,18 +115,84 @@ bot.startRTM(function (err, bot, payload) {
     throw new Error('Could not connect to Slack')
   }
 
+  const BotLogger = {
+    log: function(message, msg) {
+      console.log(message, msg)
+      bot.reply(message, msg)
+    },
+    error: function (message, e, extraMsg = null) {
+      console.error(e)
+      bot.reply(message, '```\n' + e.stack + '\n```')
+    }
+  }
+
   controller.hears('eval', listen, function (bot, message) {
     var matches = message.text.match(/eval (.*)/i);
     if (!matches) {
-      bot.reply(message, 'http://i0.kym-cdn.com/photos/images/facebook/000/057/035/NOPE.jpg')
+      BotLogger.error(message, 'http://i0.kym-cdn.com/photos/images/facebook/000/057/035/NOPE.jpg')
     } else {
       try {
         const res = eval(matches[1])
-        bot.reply(message, res)
+        BotLogger.log(message, res)
       } catch (e) {
-        console.log(e)
-        bot.reply(message, e.stack)
+        BotLogger.error(message, e)
       }
+    }
+  })
+
+  controller.hears('play (.*)', listen, function (bot, message) {
+
+    var matches = message.text.match(/play (.+?)(?:\s+(.+))?$/i);
+    var midiURL = matches && matches[1] && matches[1].toString().replace('<', '').replace('>', '')
+    var midiTempo = matches && matches[2] || 2
+
+    if (midiURL) {
+
+      const fileStream = fs.createWriteStream(midiLocation)
+      fileStream.on('close', function () {
+  
+        BotLogger.log(message,`midi file ${midiURL} downloaded to ${midiLocation}`)
+        exec(`midicsv ${midiLocation} ${midiLocation}.csv`, (e, stdout, stderr) => {
+          if (e) {
+            console.error(`midicsv exec error: ${e}`);
+          }
+  
+          if (stderr) {
+            console.error(stderr)
+          }
+  
+          exec(`python midicsv-to-beep.py -i ${midiLocation}.csv -t ${midiTempo}`, (error, stdout, stderr) => {
+            if (error) {
+              console.error(`exec error: ${error}`);
+            }
+            if (stderr) {
+              console.error(stderr)
+            }
+  
+            let durationSoFar = 0
+
+            fuckingNoises.forEach(function(noiseTimeout) {
+              clearTimeout(noiseTimeout)
+            })
+            fuckingNoises = []
+
+            stdout.split('\n').forEach(function (pairStr) {
+              let [f, d] = pairStr.split(',')
+              if (f && d) {
+                const noiseTimeout = setTimeout(function () {
+                  beep(f, d)
+                }, durationSoFar)
+                fuckingNoises.push(noiseTimeout)
+                durationSoFar += parseInt(d)
+              }
+            })
+          })
+        })
+      })
+  
+      request(midiURL).pipe(fileStream)
+    } else {
+      bot.reply(message, 'couldnt find midi url')
     }
   })
 
@@ -139,14 +201,14 @@ bot.startRTM(function (err, bot, payload) {
     var duration = Math.floor(Math.random() * 400) + 200
     var durationSoFar = 0
     startLeft()
-    while (frequency > 30) {
+    while (frequency > 40) {
       let f = frequency
       let d = duration
       durationSoFar += duration
       setTimeout(function () {
         beep(f, d)
       }, durationSoFar)
-      
+
       frequency *= Math.random() * 0.3 + 0.8
       duration *= Math.random() * 0.3 + 0.8
     }
@@ -271,14 +333,18 @@ function formatUptime(uptime) {
 }
 
 function beep(freq, duration) {
-  freq = parseInt(freq)
-  duration = parseInt(duration)
-  radio.write(`b${freq},${duration}\n`, function (err) {
-    if (err) {
-      return console.log('Error on write: ', err.message)
-    }
-    console.log(`sent beep command: ${freq}, ${duration}`)
-  })
+  freq = parseInt(freq) || 40
+  duration = parseInt(duration) || 0
+
+  if (duration > 20) {
+    radio.write(`b${freq},${duration}\n`, function (err) {
+      if (err) {
+        return console.log('Error on write: ', err.message)
+      }
+      console.log(`sent beep command: ${freq}, ${duration}`)
+    })
+  }
+
 }
 
 function move(motor1, motor2) {
