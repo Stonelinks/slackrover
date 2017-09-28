@@ -140,9 +140,11 @@ bot.startRTM(function (err, bot, payload) {
     var durationSoFar = 0
     startLeft()
     while (frequency > 30) {
+      let f = frequency
+      let d = duration
       durationSoFar += duration
       setTimeout(function () {
-        beep(frequency, duration)
+        beep(f, d)
       }, durationSoFar)
       
       frequency *= Math.random() * 0.3 + 0.8
@@ -150,7 +152,7 @@ bot.startRTM(function (err, bot, payload) {
     }
     setTimeout(function () {
       stopMovement()
-    }, durationSoFar)
+    }, durationSoFar + 100)
   })
 
   controller.hears(['uptime', 'stats'], listen, function (bot, message) {
