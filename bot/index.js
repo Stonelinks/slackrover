@@ -87,7 +87,7 @@ const commands = [
 
 let commandMap = {}
 for (var i = 0; i < commands.length; i++) {
-  command = commands[i]
+  let command = commands[i]
   commandMap[command.char] = command
 }
 
@@ -122,6 +122,9 @@ bot.startRTM(function (err, bot, payload) {
     },
     error: function (message, e, extraMsg = null) {
       console.error(e)
+      if (extraMsg) {
+        bot.reply(message, extraMsg)
+      }
       bot.reply(message, '```\n' + e.stack + '\n```')
     }
   }
@@ -157,24 +160,28 @@ bot.startRTM(function (err, bot, payload) {
         BotLogger.log(message,`midi file ${midiURL} downloaded to ${midiLocation}`)
         exec(`midicsv ${midiLocation} ${midiLocation}.csv`, (e, stdout, stderr) => {
           if (e) {
-            console.error(`midicsv exec error: ${e}`);
+            BotLogger.error(message, e, `midicsv exec error`);
           }
   
           if (stderr) {
-            console.error(stderr)
+            BotLogger.error(message, {
+              stack: stderr
+            })
           }
   
-          exec(`python midicsv-to-beep.py -i ${midiLocation}.csv -t ${midiTempo}`, (error, stdout, stderr) => {
-            if (error) {
-              console.error(`exec error: ${error}`);
+          exec(`python midicsv-to-beep.py -i ${midiLocation}.csv -t ${midiTempo}`, (e, stdout, stderr) => {
+            if (e) {
+              BotLogger.error(message, e, `midicsv-to-beep.py error`);
             }
+
             if (stderr) {
-              console.error(stderr)
+              BotLogger.error(message, {
+                stack: stderr
+              })
             }
-  
+
             let durationSoFar = 0
             clearNoises()
-
 
             stdout.split('\n').forEach(function (pairStr) {
               let [f, d] = pairStr.split(',')
@@ -192,7 +199,7 @@ bot.startRTM(function (err, bot, payload) {
   
       request(midiURL).pipe(fileStream)
     } else {
-      bot.reply(message, 'couldnt find midi url')
+      BotLogger.log(message, 'could not find midi url')
     }
   })
 
@@ -352,7 +359,7 @@ function beep(freq, duration) {
 let lastMotor1Speed = null
 let lastMotor2Speed = null
 function move(motor1, motor2) {
-  if (lastMotor1Speed !== motor1 || lastMotor2Speed !== motor2) {
+  if ((lastMotor1Speed !== motor1 || lastMotor2Speed !== motor2) || (!motor1 && !motor2)) {
     lastMotor1Speed = motor1
     lastMotor2Speed = motor2
     radio.write(`m${motor1},${motor2}\n`, function (err) {
