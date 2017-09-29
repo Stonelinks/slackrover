@@ -144,63 +144,11 @@ bot.startRTM(function (err, bot, payload) {
   })
 
   controller.hears('play (.*)', listen, function (bot, message) {
+    play(bot, message, beep)
+  })
 
-    var matches = message.text.match(/play (.+?)(?:\s+(.+))?$/i);
-    var midiURL = matches && matches[1] && matches[1].toString().replace('<', '').replace('>', '')
-    var midiTempo = matches && matches[2] || 2
-
-    if (midiURL) {
-      if (midiURL === 'http://www.midiworld.com/download/854') {
-        BotLogger.log(message, 'https://i.ytimg.com/vi/u0py1ECA2eM/maxresdefault.jpg')
-      }
-
-      const fileStream = fs.createWriteStream(midiLocation)
-      fileStream.on('close', function () {
-  
-        BotLogger.log(message,`midi file ${midiURL} downloaded to ${midiLocation}`)
-        exec(`midicsv ${midiLocation} ${midiLocation}.csv`, (e, stdout, stderr) => {
-          if (e) {
-            BotLogger.error(message, e, `midicsv exec error`);
-          }
-  
-          if (stderr) {
-            BotLogger.error(message, {
-              stack: stderr
-            })
-          }
-  
-          exec(`python midicsv-to-beep.py -i ${midiLocation}.csv -t ${midiTempo}`, (e, stdout, stderr) => {
-            if (e) {
-              BotLogger.error(message, e, `midicsv-to-beep.py error`);
-            }
-
-            if (stderr) {
-              BotLogger.error(message, {
-                stack: stderr
-              })
-            }
-
-            let durationSoFar = 0
-            clearNoises()
-
-            stdout.split('\n').forEach(function (pairStr) {
-              let [f, d] = pairStr.split(',')
-              if (f && d) {
-                const noiseTimeout = setTimeout(function () {
-                  beep(f, d)
-                }, durationSoFar)
-                fuckingNoises.push(noiseTimeout)
-                durationSoFar += parseInt(d)
-              }
-            })
-          })
-        })
-      })
-  
-      request(midiURL).pipe(fileStream)
-    } else {
-      BotLogger.log(message, 'could not find midi url')
-    }
+  controller.hears('pley (.*)', listen, function (bot, message) {
+    play(bot, message, bep)
   })
 
   controller.hears('covfefe', listen, function (bot, message) {
@@ -239,31 +187,11 @@ bot.startRTM(function (err, bot, payload) {
   })
 
   controller.hears('beep', listen, function (bot, message) {
-    var matches = message.text.match(/beep\s+(.*)/i)
-    if (!matches) {
-      beep(600, 50)
-      clearNoises()
-      return
-    }
+    beepHandler(bot, message, beep)
+  })
 
-    var tonesText = matches[1]
-    let durationSoFar = 0
-    clearNoises()
-    while (tonesText) {
-      matches = tonesText.match(/(\d+\.?\d*)\s+(\d+\.?\d*)(?:\s+(.*))?/i)
-      if (!matches) {
-        return
-      }
-      let frequency = matches[1]
-      let duration = matches[2]
-      tonesText = matches[3]
-      durationSoFar += parseInt(duration)
-      setTimeout(function () {
-        if (parseInt(frequency)) {
-          beep(frequency, duration)
-        }
-      }, durationSoFar)
-    }
+  controller.hears('bep', listen, function (bot, message) {
+    beepHandler(bot, message, bep)
   })
 
   controller.hears(['fast'], listen, function (bot, message) {
@@ -341,6 +269,34 @@ function formatUptime(uptime) {
   return uptime
 }
 
+function beepHandler(bot, message, beepFunc) {
+  var matches = message.text.match(/beep\s+(.*)/i)
+  if (!matches) {
+    beep(600, 50)
+    clearNoises()
+    return
+  }
+
+  var tonesText = matches[1]
+  let durationSoFar = 0
+  clearNoises()
+  while (tonesText) {
+    matches = tonesText.match(/(\d+\.?\d*)\s+(\d+\.?\d*)(?:\s+(.*))?/i)
+    if (!matches) {
+      return
+    }
+    let frequency = matches[1]
+    let duration = matches[2]
+    tonesText = matches[3]
+    durationSoFar += parseInt(duration)
+    setTimeout(function () {
+      if (parseInt(frequency)) {
+        beepFunc(frequency, duration)
+      }
+    }, durationSoFar)
+  }
+}
+
 function beep(freq, duration) {
   freq = parseInt(freq) || 40
   duration = parseInt(duration) || 0
@@ -353,7 +309,13 @@ function beep(freq, duration) {
       console.log(`sent beep command: ${freq}, ${duration}`)
     })
   }
+}
 
+function bep(freq, duration) {
+  freq = (parseInt(freq) || 40) * 0.98 + Math.random() * 0.04
+  duration = (parseInt(duration) || 0) * 0.8 + Math.random() * 0.4
+
+  beep(freq, duration)
 }
 
 let lastMotor1Speed = null
@@ -443,4 +405,63 @@ function clearNoises () {
     clearTimeout(noiseTimeout)
   })
   fuckingNoises = []
+}
+
+function play (bot, message, beepFunc) {
+  var matches = message.text.match(/play (.+?)(?:\s+(.+))?$/i);
+  var midiURL = matches && matches[1] && matches[1].toString().replace('<', '').replace('>', '')
+  var midiTempo = matches && matches[2] || 2
+
+  if (midiURL) {
+    if (midiURL === 'http://www.midiworld.com/download/854') {
+      BotLogger.log(message, 'https://i.ytimg.com/vi/u0py1ECA2eM/maxresdefault.jpg')
+    }
+
+    const fileStream = fs.createWriteStream(midiLocation)
+    fileStream.on('close', function () {
+
+      BotLogger.log(message, `midi file ${midiURL} downloaded to ${midiLocation}`)
+      exec(`midicsv ${midiLocation} ${midiLocation}.csv`, (e, stdout, stderr) => {
+        if (e) {
+          BotLogger.error(message, e, `midicsv exec error`);
+        }
+
+        if (stderr) {
+          BotLogger.error(message, {
+            stack: stderr
+          })
+        }
+
+        exec(`python midicsv-to-beep.py -i ${midiLocation}.csv -t ${midiTempo}`, (e, stdout, stderr) => {
+          if (e) {
+            BotLogger.error(message, e, `midicsv-to-beep.py error`);
+          }
+
+          if (stderr) {
+            BotLogger.error(message, {
+              stack: stderr
+            })
+          }
+
+          let durationSoFar = 0
+          clearNoises()
+
+          stdout.split('\n').forEach(function (pairStr) {
+            let [f, d] = pairStr.split(',')
+            if (f && d) {
+              const noiseTimeout = setTimeout(function () {
+                beepFunc(f, d)
+              }, durationSoFar)
+              fuckingNoises.push(noiseTimeout)
+              durationSoFar += parseInt(d)
+            }
+          })
+        })
+      })
+    })
+
+    request(midiURL).pipe(fileStream)
+  } else {
+    BotLogger.log(message, 'could not find midi url')
+  }
 }
