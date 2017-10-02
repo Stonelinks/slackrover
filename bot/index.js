@@ -36,6 +36,8 @@ var radio = new SerialPort('/dev/ttyUSB0', {
   baudRate: 57600
 })
 
+let BotLogger
+
 // motors can go -255 to 255
 const motorSpeedForward = 100
 const motorSpeedForwardFast = 200
@@ -115,8 +117,8 @@ bot.startRTM(function (err, bot, payload) {
     throw new Error('Could not connect to Slack')
   }
 
-  const BotLogger = {
-    log: function(message, msg) {
+  BotLogger = {
+    log: function (message, msg) {
       console.log(message, msg)
       bot.reply(message, msg)
     },
@@ -178,7 +180,7 @@ bot.startRTM(function (err, bot, payload) {
     bot.reply(message, `:robot_face: I am a bot named <@${bot.identity.name}>. I have been running for ${uptime} on ${hostname}.`)
   })
 
-  controller.hears('help.*', listen, function (bot, message) {
+  controller.hears(['help.*', 'halp.*', 'hlep.*'], listen, function (bot, message) {
     let msg = 'Send me sequences of the following commands to do stuff:\n'
     commands.forEach(function (o) {
       msg += `- '${o.char}': ${o.desc}\n`
@@ -201,7 +203,7 @@ bot.startRTM(function (err, bot, payload) {
   })
 
   controller.hears('.*', ['direct_message', 'direct_mention'], function (bot, message) {
-    let msg = 'I don\'t respond to this. Please go on the #rover channel to use me'
+    let msg = 'I don\'t respond to this. Please go on the <C76A62VNW> channel to use me'
     bot.reply(message, msg)
   })
 
@@ -297,25 +299,25 @@ function beepHandler(bot, message, beepFunc) {
   }
 }
 
-function beep(freq, duration) {
+function beep(freq, duration, beepOrBep = 'beep') {
   freq = parseInt(freq) || 40
   duration = parseInt(duration) || 0
 
-  if (duration > 20) {
-    radio.write(`b${freq},${duration}\n`, function (err) {
-      if (err) {
-        return console.log('Error on write: ', err.message)
-      }
-      console.log(`sent beep command: ${freq}, ${duration}`)
-    })
-  }
+  radio.write(`b${freq},${duration}\n`, function (err) {
+    if (err) {
+      return console.log('Error on write: ', err.message)
+    }
+    console.log(`sent ${beepOrBep} command: ${freq}, ${duration}`)
+  })
 }
 
 function bep(freq, duration) {
-  freq = (parseInt(freq) || 40) * 0.98 + Math.random() * 0.04
-  duration = (parseInt(duration) || 0) * 0.8 + Math.random() * 0.4
+  freq = (parseInt(freq) || 40)
+  freq = freq * (0.97 + Math.random() * 0.06)
+  duration = (parseInt(duration) || 0)
+  duration = duration * (0.9 + Math.random() * 0.2)
 
-  beep(freq, duration)
+  beep(freq, duration, 'bep')
 }
 
 let lastMotor1Speed = null
@@ -400,15 +402,15 @@ function takeAndSendPicture(message) {
   }, motorDelay)
 }
 
-function clearNoises () {
+function clearNoises() {
   fuckingNoises.forEach(function (noiseTimeout) {
     clearTimeout(noiseTimeout)
   })
   fuckingNoises = []
 }
 
-function play (bot, message, beepFunc) {
-  var matches = message.text.match(/play (.+?)(?:\s+(.+))?$/i);
+function play(bot, message, beepFunc) {
+  var matches = message.text.match(/pl[ae]y (.+?)(?:\s+(.+))?$/i);
   var midiURL = matches && matches[1] && matches[1].toString().replace('<', '').replace('>', '')
   var midiTempo = matches && matches[2] || 2
 
@@ -448,7 +450,7 @@ function play (bot, message, beepFunc) {
 
           stdout.split('\n').forEach(function (pairStr) {
             let [f, d] = pairStr.split(',')
-            if (f && d) {
+            if (f && d && parseInt(d) > 30) {
               const noiseTimeout = setTimeout(function () {
                 beepFunc(f, d)
               }, durationSoFar)
